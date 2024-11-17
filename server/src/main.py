@@ -23,3 +23,4 @@ print(a.map[0])
 for i in range(20):
     a.step()
 
+print(a.map[0])

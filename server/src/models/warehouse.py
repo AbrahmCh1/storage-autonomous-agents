@@ -127,10 +127,10 @@ class Warehouse():
             raise InvalidHeight("Provided height was higher than map height")
         
         # each array represents the columns of things around the position
-        left = [self.map[z][x - 1][y] for z in range(z_space)] if x - 1 > 0 and x - 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
-        right = [self.map[z][x + 1][y] for z in range(z_space)] if x + 1 > 0 and x + 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
-        front = [self.map[z][x][y + 1] for z in range(z_space)] if y + 1 > 0 and y + 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
-        back = [self.map[z][x][y - 1] for z in range(z_space)] if y - 1 > 0 and y - 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        left = [self.map[z][x - 1][y] for z in range(z_space)] if x - 1 >= 0 and x - 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        right = [self.map[z][x + 1][y] for z in range(z_space)] if x + 1 >= 0 and x + 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        front = [self.map[z][x][y + 1] for z in range(z_space)] if y + 1 >= 0 and y + 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        back = [self.map[z][x][y - 1] for z in range(z_space)] if y - 1 >= 0 and y - 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
 
         return {
             "front": front,
@@ -213,10 +213,10 @@ class Agent():
         # each array represents the columns of things around the position
         # there can be instances of 'Object', 'Storage' a 0 representing a
         # wall/limit and a 1 representing empty floor
-        left = [self.map[z][x - 1][y] for z in range(z_space)] if x - 1 > 0 and x - 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
-        right = [self.map[z][x + 1][y] for z in range(z_space)] if x + 1 > 0 and x + 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
-        front = [self.map[z][x][y + 1] for z in range(z_space)] if y + 1 > 0 and y + 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
-        back = [self.map[z][x][y - 1] for z in range(z_space)] if y - 1 > 0 and y - 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        left = [self.map[z][x - 1][y] for z in range(z_space)] if x - 1 >= 0 and x - 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        right = [self.map[z][x + 1][y] for z in range(z_space)] if x + 1 >= 0 and x + 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        front = [self.map[z][x][y + 1] for z in range(z_space)] if y + 1 >= 0 and y + 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
+        back = [self.map[z][x][y - 1] for z in range(z_space)] if y - 1 >= 0 and y - 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
 
         return {
             "front": front,
@@ -239,6 +239,7 @@ class Agent():
         x, y, _ = self.position
 
         if current_left != previous_left:
+            print(f"[A{self.id}] fixing left!")
             # we need to fix our perception at the left!
             for z in range(z_space):
                 if current_left[z] != previous_left[z]:
@@ -251,6 +252,7 @@ class Agent():
 
 
         if current_right != previous_right:
+            print(f"[A{self.id}] fixing right!")
             # we need to fix our perception at the right!
             for z in range(z_space):
                 if current_right[z] != previous_right[z]:
@@ -262,6 +264,7 @@ class Agent():
                     self.map[z][x + 1][y] = current_right[z]
 
         if current_front != previous_front:
+            print(f"[A{self.id}] fixing front!")
             # we need to fix our perception at the front!
             for z in range(z_space):
                 if current_front[z] != previous_front[z]:
@@ -273,6 +276,7 @@ class Agent():
                     self.map[z][x][y + 1] = current_front[z]
 
         if current_back != previous_back:
+            print(f"[A{self.id}] fixing back!")
             # we need to fix our perception at the back!
             for z in range(z_space):
                 if current_back[z] != previous_back[z]:
@@ -362,10 +366,62 @@ class Agent():
             if feasible: return
             if isinstance(reason, Agent):
                 # if an agent gets in the way wait random amount
-                t = random.choice([1, 2, 3])
-                wait_steps = [Step(AgentAction.WAIT, None) for _ in range(t)]
-                self.planned_steps = wait_steps + self.planned_steps
-                return
+                self.planned_steps = []
+                if self.state == AgentState.CARRYING_OBJECT:
+                    print("Something went wrong, recalculating path to storage")
+                    # check if path must be modified
+                    if self.inventory is None:
+                        raise Exception("Invalid state. Agent should have an object in the inventory if on this state")
+
+                    path, storage = self.get_path_to_storage(self.inventory)
+
+                    print("Path to storage calculated:")
+                    print(path)
+                    print(storage)
+
+                    movement_steps = self.path_to_movement(path)
+                    store_steps = [
+                        Step(AgentAction.STORE, { "storage": storage }),
+                        Step(AgentAction.CHANGE_STATE, { "new_state": AgentState.STANDBY })
+                    ]
+
+                    # set the plan to be the combination of these steps
+                    # 1. Move to selected storage
+                    # 2. Store object and set new state to standby
+                    self.planned_steps = movement_steps + store_steps
+                    
+                    print("Planned steps")
+                    for step in self.planned_steps:
+                        print(f"\t{step.action} - {step.params}")
+                    return
+
+                if self.state == AgentState.MOVING_TO_OBJECT:
+                    print("Something went wrong, recalculating path to object")
+                    try:
+                        path, object = self.get_path_to_object()
+                    except:
+                        # we can probably safely exit?
+                        self.planned_steps = [Step(AgentAction.WAIT, None)]
+                        return
+
+                    print("planning to go to object", object)
+                    print("path: ", path)
+
+                    movement_steps = self.path_to_movement(path)
+                    pickup_steps = [
+                        Step(AgentAction.PICK_UP, { "object": object }), # pick up the object
+                        Step(AgentAction.CHANGE_STATE, { "new_state": AgentState.CARRYING_OBJECT }) # change agent state to carrying object
+                    ]
+                    
+                    # set plan to be the combination of these steps
+                    # 2. move to object
+                    # 3. pickup object and set state to MOVING_OBJECT
+                    self.planned_steps = movement_steps + pickup_steps
+
+                    print("Planned steps")
+                    for step in self.planned_steps:
+                        print(f"\t{step.action} - {step.params}")
+                    return
             
             raise Exception("Unexpected error in MOVE_FORWARD:", reason)
         
