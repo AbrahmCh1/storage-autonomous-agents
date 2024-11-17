@@ -787,6 +787,7 @@ class Agent():
             ],
             model="gpt-4o-mini",
             max_completion_tokens=25,
+            temperature=0.1,
         )
 
         maybe_response = completion.choices[0].message.content
