@@ -15,12 +15,12 @@ s2 = Storage((0, 0, 1))
 a.attach_storage(s1)
 a.attach_storage(s2)
 
-a.seed_objects(2)
+a.seed_objects(1)
 a.seed_agents(2)
 
 print(a.map[0])
 
-for i in range(20):
+while not a.is_sorted():
     a.step()
 
 print(a.map[0])

@@ -43,6 +43,25 @@ class Warehouse():
             "dimensions": { "x": x, "y": y, "z": z },
         })
 
+    def is_sorted(self):
+        base_map = self.map[0]
+        global are_there_objects
+        global agents_have_objects
+
+        are_there_objects = False
+
+        for row in base_map:
+            for element in row:
+                if isinstance(element, Object):
+                    are_there_objects = True
+
+        agents_have_objects = False
+        for agent in self.agents:
+            if agent.inventory is not None:
+                agents_have_objects = True
+
+        return not are_there_objects and not agents_have_objects
+
     # Attaches a storage to it's specified location
     # and keeps capacity information up to date
     def attach_storage(self, s: Storage):
@@ -303,7 +322,7 @@ class Agent():
                     path, object = self.get_path_to_object()
                 except:
                     # we can probably safely exit?
-                    self.planned_steps = [Step(AgentAction.WAIT, None)]
+                    self.planned_steps = [Step(AgentAction.CHANGE_STATE, { "new_state": AgentState.STANDBY }), Step(AgentAction.WAIT, None)]
                     return
 
                 print("planning to go to object", object)
@@ -401,7 +420,7 @@ class Agent():
                         path, object = self.get_path_to_object()
                     except:
                         # we can probably safely exit?
-                        self.planned_steps = [Step(AgentAction.WAIT, None)]
+                        self.planned_steps = [Step(AgentAction.CHANGE_STATE, { "new_state": AgentState.STANDBY }), Step(AgentAction.WAIT, None)]
                         return
 
                     print("planning to go to object", object)
@@ -430,7 +449,12 @@ class Agent():
             if self.inventory is None and reason == next_step.params["object"]: return
             # at this point we pretty much just try another object
             self.planned_steps = []
-            path, object = self.get_path_to_object()
+            try:
+                path, object = self.get_path_to_object()
+            except:
+                # we can probably safely exit?
+                self.planned_steps = [Step(AgentAction.CHANGE_STATE, { "new_state": AgentState.STANDBY }), Step(AgentAction.WAIT, None)]
+                return
 
             movement_steps = self.path_to_movement(path)
             pickup_steps = [
