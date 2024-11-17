@@ -23,16 +23,18 @@ class EventEmitter():
 
         self.event_handlers[type].append(handler)
 
-    def send_event(self, type: str, data: list[Any]):
+    def send_event(self, type: str, data: Any):
         # send an event through current TCP connection with the following shape
         # {"type": type, "data": {...}}
+        str_data = [str(d) for d in data]
+
         event = {
             "type": type,
-            "data": ",".join(data)
+            "data": ",".join(str_data)
         }
 
-        message = json.dumps(event).encode('utf-8')
-        self.conn.sendall(message)
+        message = json.dumps(event) + "\n"
+        self.conn.sendall(message.encode('utf-8'))
 
     def close(self):
         self.conn.close()
