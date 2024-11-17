@@ -1,8 +1,12 @@
 import random
+import os
+import base64
+from openai import OpenAI
 
 from enum import Enum
 from typing import Any
 from copy import copy
+from dotenv import load_dotenv
 
 from models.storage import Storage
 from models.eventemmiter import EventEmitter
@@ -91,8 +95,8 @@ class Warehouse():
         if object_count > self.capacity:
             raise InsufficientStorage(f"Make sure to attach more storage with attach_storage before seeding")
 
+        object_srcs = os.listdir("server/objects")
         # the sources to the images 
-        object_srcs = ["src_1", "src_2", "src_3"]
         x, y, _ = self.dimensions
 
         # generate random positions for the objects in z = 0
@@ -752,10 +756,48 @@ class Agent():
         return steps
 
     def scan_object(self, object: Object) -> str:
-        # TODO: Implement an AI vision name
-        return "object_name"
+        load_dotenv()
+
+        def encode_image(image_path):
+            with open(image_path, "rb") as image_file:
+                return base64.b64encode(image_file.read()).decode('utf-8')
+
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        image_path = os.path.join("server", "objects", object.image_src)
+        base64_image = encode_image(image_path)
+
+        completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a simple vision model. Your task is to see the image provided by the user and reply with it's name in only one word. Example answers could be: apple, baseball, train"
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            model="gpt-4o-mini",
+            max_completion_tokens=25,
+        )
+
+        maybe_response = completion.choices[0].message.content
+
+        if maybe_response is None:
+            raise Exception("Model response was empty")
+
+        return maybe_response
 
     def get_object_storage_location(self, key: str) -> Storage:
+        print("looking for location for key", key)
         return self.warehouse.map[0][0][0] # TODO: Properly implement this
 
     # function that finds a path to the place to store that object
