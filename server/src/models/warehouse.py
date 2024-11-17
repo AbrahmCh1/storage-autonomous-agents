@@ -30,11 +30,11 @@ class Warehouse():
         # generate an empty map. may contain none, storage or object
         # to access a given floor map, use self.map[level]
         # to access a given position, use self.map[level][x][y]
-        self.map: list[list[list[SpaceState | Storage | Object]]] = [[[SpaceState.FREE_SPACE for _ in range(y)] for _ in range(x)] for _ in range(z)]
+        self.map: list[list[list[SpaceState | Storage | Object | Agent]]] = [[[SpaceState.FREE_SPACE for _ in range(y)] for _ in range(x)] for _ in range(z)]
 
         # generate a static map that will never be modified. This
         # is what is going to be handed out to the agents initially
-        self.static_map: list[list[list[SpaceState | Storage | Object]]] = [[[SpaceState.FREE_SPACE for _ in range(y)] for _ in range(x)] for _ in range(z)]
+        self.static_map: list[list[list[SpaceState | Storage | Object | Agent]]] = [[[SpaceState.FREE_SPACE for _ in range(y)] for _ in range(x)] for _ in range(z)]
         
         # emit an event to notify client of
         # warehouse being attached
@@ -92,6 +92,7 @@ class Warehouse():
             # random object being placed
             self.ee.send_event("object_attached", {
                 "object_id": "some-id",
+                "type": "typename",
                 "position": { "x": x, "y": y, "z": 0 },
             })
 
@@ -100,11 +101,11 @@ class Warehouse():
 
         for i in range(agent_count):
             xrandom = random.choice(range(x))
-            yrandom = random.choice(range(x))
+            yrandom = random.choice(range(y))
 
             while self.map[0][xrandom][yrandom] != SpaceState.FREE_SPACE:
                 xrandom = random.choice(range(x))
-                yrandom = random.choice(range(x))
+                yrandom = random.choice(range(y))
 
             agent = Agent(self, (xrandom, yrandom, 0), i)
             
@@ -126,8 +127,6 @@ class Warehouse():
             raise InvalidHeight("Provided height was higher than map height")
         
         # each array represents the columns of things around the position
-        # there can be instances of 'Object', 'Storage' a 0 representing a
-        # wall/limit and a 1 representing empty floor
         left = [self.map[z][x - 1][y] for z in range(z_space)] if x - 1 > 0 and x - 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
         right = [self.map[z][x + 1][y] for z in range(z_space)] if x + 1 > 0 and x + 1 < x_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
         front = [self.map[z][x][y + 1] for z in range(z_space)] if y + 1 > 0 and y + 1 < y_space else [SpaceState.OUT_OF_BOUNDS for _ in range(z_space)]
@@ -172,9 +171,6 @@ class AgentState(Enum):
 
 class AgentAction(Enum):
     MOVE_FORWARD = 1
-    MOVE_BACKWARD = 2
-    MOVE_LEFT = 3
-    MOVE_RIGHT = 4
     ROTATE = 5
     WAIT = 6
     PICK_UP = 7
@@ -203,6 +199,7 @@ class Agent():
         self.direction = Direction.FORWARD
         self.inventory: Object | None = None
         self.id = n
+        self.rotation = 0
 
     # get the current perception at a given position, based on the 
     # current map the agent has
@@ -230,7 +227,7 @@ class Agent():
 
     # given new sensor data, compare the sensor data with expected data,
     # and update the map to match sensor data
-    def perceive(self, surroundings: dict[str, list[SpaceState | Storage | Object]]):
+    def perceive(self, surroundings: dict[str, list[SpaceState | Storage | Object, 'Agent']]):
         prev_surroundings = self.get_current_perception(self.position)
 
         current_left, previous_left = surroundings["left"], prev_surroundings["left"]
@@ -293,12 +290,17 @@ class Agent():
         # this will use the available information
         # to make a plan or decision on what to do
         # this will depend on the current state of the agent
-        print("Agent is planning...")
+        print(f"Agent {self.id} is planning...")
 
         # if there are no planned steps
         if len(self.planned_steps) == 0:
             if self.state == AgentState.STANDBY:
-                path, object = self.get_path_to_object()
+                try:
+                    path, object = self.get_path_to_object()
+                except:
+                    # we can probably safely exit?
+                    self.planned_steps = [Step(AgentAction.WAIT, None)]
+                    return
 
                 print("planning to go to object", object)
                 print("path: ", path)
@@ -315,6 +317,10 @@ class Agent():
                 # 2. move to object
                 # 3. pickup object and set state to MOVING_OBJECT
                 self.planned_steps = initial_steps + movement_steps + pickup_steps
+
+                print("Planned steps")
+                for step in self.planned_steps:
+                    print(f"\t{step.action} - {step.params}")
             
             if self.state == AgentState.MOVING_TO_OBJECT:
                 raise Exception("Invalid state. Agent should have at least one step if on this state")
@@ -325,6 +331,11 @@ class Agent():
                     raise Exception("Invalid state. Agent should have an object in the inventory if on this state")
 
                 path, storage = self.get_path_to_storage(self.inventory)
+
+                print("Path to storage calculated:")
+                print(path)
+                print(storage)
+
                 movement_steps = self.path_to_movement(path)
                 store_steps = [
                     Step(AgentAction.STORE, { "storage": storage }),
@@ -335,6 +346,10 @@ class Agent():
                 # 1. Move to selected storage
                 # 2. Store object and set new state to standby
                 self.planned_steps = movement_steps + store_steps
+                
+                print("Planned steps")
+                for step in self.planned_steps:
+                    print(f"\t{step.action} - {step.params}")
 
             return # we have created an initial plan
     
@@ -342,47 +357,223 @@ class Agent():
         # and make sure it is still possible
         next_step = self.planned_steps[0]
         
-        if next_step.action == AgentAction.MOVE_RIGHT:
-            feasible, reason = self.is_move_feasible(Direction.RIGHT)
-            if feasible: return
-
-        if next_step.action == AgentAction.MOVE_LEFT:
-            feasible, reason = self.is_move_feasible(Direction.LEFT)
-            if feasible: return
-        
         if next_step.action == AgentAction.MOVE_FORWARD:
             feasible, reason = self.is_move_feasible(Direction.FORWARD)
             if feasible: return
-        
-        if next_step.action == AgentAction.MOVE_BACKWARD:
-            feasible, reason = self.is_move_feasible(Direction.BACKWARD)
-            if feasible: return
+            if isinstance(reason, Agent):
+                # if an agent gets in the way wait random amount
+                t = random.choice([1, 2, 3])
+                wait_steps = [Step(AgentAction.WAIT, None) for _ in range(t)]
+                self.planned_steps = wait_steps + self.planned_steps
+                return
+            
+            raise Exception("Unexpected error in MOVE_FORWARD:", reason)
         
         if next_step.action == AgentAction.PICK_UP:
             _, reason = self.is_move_feasible(Direction.FORWARD)
-            if reason == next_step.params["object"]: return
+            if self.inventory is None and reason == next_step.params["object"]: return
+            # at this point we pretty much just try another object
+            self.planned_steps = []
+            path, object = self.get_path_to_object()
+
+            movement_steps = self.path_to_movement(path)
+            pickup_steps = [
+                Step(AgentAction.PICK_UP, { "object": object }), # pick up the object
+                Step(AgentAction.CHANGE_STATE, { "new_state": AgentState.CARRYING_OBJECT }) # change agent state to carrying object
+            ]
+            
+            # set plan to be the combination of these steps
+            # 1. change state to move to object
+            # 2. move to object
+            # 3. pickup object and set state to MOVING_OBJECT
+            self.planned_steps = movement_steps + pickup_steps
+            return
+
         
         if next_step.action == AgentAction.STORE:
             target_storage: Storage = next_step.params["storage"]
             _, reason = self.is_move_feasible(Direction.FORWARD, target_storage.location[2])
             if target_storage == reason and not target_storage.is_full(): return
-
-        if next_step.action == AgentAction.ROTATE:
-            return # rotate is always possible
-        
-        if next_step.action == AgentAction.WAIT:
-            return # wait is always possible
-
-        if next_step.action == AgentAction.CHANGE_STATE:
-            return # change state is always possible
+            # TODO: handle cases when storing is no longer possible
+            raise Exception("Storage ran out!")
 
     def step(self):
         # this will execute the action at the top
         # of the agent's plan
-        print("CURRENT PLAN")
+        
+        # handle all CHANGE_STATE events before executing        
+        while self.planned_steps and self.planned_steps[0].action == AgentAction.CHANGE_STATE:
+            step = self.planned_steps.pop(0)
+            new_state = step.params["new_state"]
+            self.state = new_state
+            print("New agent state", self.state)
 
-        for i, step in enumerate(self.planned_steps):
-            print(f"s{i + 1}: {step.action.name} - {step.params}")
+        if len(self.planned_steps) == 0:
+            return # go to next iterations
+
+        step = self.planned_steps.pop(0)
+
+        print(f"[A{self.id}] Executing step", step.action, step.params)
+
+        if step.action == AgentAction.MOVE_FORWARD:
+            directions = {
+                0: Direction.FORWARD,
+                90: Direction.RIGHT,
+                180: Direction.BACKWARD,
+                270: Direction.LEFT, 
+            }
+
+            dir = directions[self.rotation]
+
+            x, y, z = self.position
+
+            if dir == Direction.FORWARD:
+                # clear the space and update our position in the warehouse
+                self.warehouse.map[0][x][y] = SpaceState.FREE_SPACE
+                self.map[0][x][y] = SpaceState.FREE_SPACE
+                self.warehouse.map[0][x][y + 1] = self
+                
+                # update the agent position (itself)
+                self.position = (x, y + 1, z)
+            
+            if dir == Direction.RIGHT:
+                # clear the space and update our position in the warehouse
+                self.warehouse.map[0][x][y] = SpaceState.FREE_SPACE
+                self.map[0][x][y] = SpaceState.FREE_SPACE
+                self.warehouse.map[0][x + 1][y] = self
+                
+                # update the agent position (itself)
+                self.position = (x + 1, y, z)
+
+            if dir == Direction.BACKWARD:
+                # clear the space and update our position in the warehouse
+                self.warehouse.map[0][x][y] = SpaceState.FREE_SPACE
+                self.map[0][x][y] = SpaceState.FREE_SPACE
+                self.warehouse.map[0][x][y - 1] = self
+                
+                # update the agent position (itself)
+                self.position = (x, y - 1, z)
+
+            if dir == Direction.LEFT:
+                # clear the space and update our position in the warehouse
+                self.warehouse.map[0][x][y] = SpaceState.FREE_SPACE
+                self.map[0][x][y] = SpaceState.FREE_SPACE
+                self.warehouse.map[0][x - 1][y] = self
+                
+                # update the agent position (itself)
+                self.position = (x - 1, y, z)
+            
+            return # FORWARD handled
+
+        if step.action == AgentAction.PICK_UP:
+            directions = {
+                0: Direction.FORWARD,
+                90: Direction.RIGHT,
+                180: Direction.BACKWARD,
+                270: Direction.LEFT, 
+            }
+
+            dir = directions[self.rotation]
+
+            x, y, z = self.position
+
+            if self.inventory is not None:
+                raise Exception("Inventory was full and you tried to pickup an object")
+
+            if dir == Direction.FORWARD:
+                # get object reference, clear object space and store object in inventory
+                obj = self.warehouse.map[0][x][y + 1]
+                self.warehouse.map[0][x][y + 1] = SpaceState.FREE_SPACE
+                self.map[0][x][y + 1] = SpaceState.FREE_SPACE
+                self.inventory = obj
+            
+            if dir == Direction.RIGHT:
+                # get object reference, clear object space and store object in inventory
+                obj = self.warehouse.map[0][x + 1][y]
+                self.warehouse.map[0][x + 1][y] = SpaceState.FREE_SPACE
+                self.map[0][x + 1][y] = SpaceState.FREE_SPACE
+                self.inventory = obj
+
+            if dir == Direction.BACKWARD:
+                # get object reference, clear object space and store object in inventory
+                obj = self.warehouse.map[0][x][y - 1]
+                self.warehouse.map[0][x][y - 1] = SpaceState.FREE_SPACE
+                self.map[0][x][y - 1] = SpaceState.FREE_SPACE
+                self.inventory = obj
+
+            if dir == Direction.LEFT:
+                # get object reference, clear object space and store object in inventory
+                obj = self.warehouse.map[0][x - 1][y]
+                self.warehouse.map[0][x - 1][y] = SpaceState.FREE_SPACE
+                self.map[0][x - 1][y] = SpaceState.FREE_SPACE
+                self.inventory = obj
+
+            return # PICK_UP handled
+        
+        if step.action == AgentAction.ROTATE:
+            new_rotation = (self.rotation + step.params["degrees"] + 720) % 360
+            self.rotation = new_rotation
+            return
+        
+        if step.action == AgentAction.STORE:
+            directions = {
+                0: Direction.FORWARD,
+                90: Direction.RIGHT,
+                180: Direction.BACKWARD,
+                270: Direction.LEFT, 
+            }
+
+            dir = directions[self.rotation]
+
+            x, y, z = self.position
+
+            if self.inventory is None:
+                raise Exception("Inventory was empty and you tried to store an object")
+
+            if dir == Direction.FORWARD:
+                storage = self.warehouse.map[0][x][y + 1]
+                if storage.is_full():
+                    raise Exception("Storage is full")
+                
+                storage.store(self.inventory)
+                self.inventory = None
+            
+            if dir == Direction.RIGHT:
+                storage = self.warehouse.map[0][x + 1][y]
+                if storage.is_full():
+                    raise Exception("Storage is full")
+                
+                storage.store(self.inventory)
+                self.inventory = None
+
+            if dir == Direction.BACKWARD:
+                storage = self.warehouse.map[0][x][y - 1]
+                if storage.is_full():
+                    raise Exception("Storage is full")
+                
+                storage.store(self.inventory)
+                self.inventory = None
+
+            if dir == Direction.LEFT:
+                storage = self.warehouse.map[0][x - 1][y]
+                if storage.is_full():
+                    raise Exception("Storage is full")
+                
+                storage.store(self.inventory)
+                self.inventory = None
+
+            return # PICK_UP handled
+
+        if step.action == AgentAction.WAIT:
+            return # WAIT handled
+        
+        # handle all CHANGE_STATE events after executing
+        while self.planned_steps and self.planned_steps[0].action == AgentAction.CHANGE_STATE:
+            step = self.planned_steps.pop(0)
+            new_state = step.params["new_state"]
+            self.state = new_state
+            print("New agent state", self.state)
+        
 
     ## From here on out, all of these methods might be 
     ## specific to the actions that can be executed in step
@@ -426,27 +617,30 @@ class Agent():
             for dx, dy in directions:
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < n and 0 <= ny < m and (nx, ny) not in visited:
-                    # if floor_map[nx][ny] == SpaceState.FREE_SPACE:
-                    queue.append((nx, ny))
-                    visited.add((nx, ny))
-                    parents[(nx, ny)] = (x, y)
+                    if floor_map[nx][ny] == SpaceState.FREE_SPACE or isinstance(floor_map[nx][ny], Object):
+                        queue.append((nx, ny))
+                        visited.add((nx, ny))
+                        parents[(nx, ny)] = (x, y)
 
         raise Exception("Path not found")
 
     def path_to_movement(self, path: list[tuple[int, int, int]]) -> list[Step]:
-        current_rotation = 0
+        current_rotation = self.rotation
         steps: list[Step] = []
 
+        # function that calculates the rotation in degrees we need
+        # to be facing in a global direction
         def calculate_rotation(dir: Direction):
-            rotations = {
+            dir_to_angle = {
                 Direction.FORWARD: 0,
                 Direction.RIGHT: 90,
                 Direction.BACKWARD: 180,
                 Direction.LEFT: 270, 
             }
 
-            # TODO: Consider if (n + 720) % 360 trick is needed
-            return rotations[dir] - current_rotation
+            new_angle = (dir_to_angle[dir] - current_rotation + 720) % 360
+
+            return new_angle
 
         for i in range(len(path) - 1):
             a1, a2, _ = path[i + 1]
@@ -467,7 +661,7 @@ class Agent():
             direction = delta_to_direction[direction_delta]
             rotation = calculate_rotation(direction)
 
-            current_rotation = rotation
+            current_rotation = (current_rotation + rotation + 720) % 360
 
             if rotation != 0:
                 steps.append(Step(AgentAction.ROTATE, { "degrees": rotation }))
@@ -477,10 +671,64 @@ class Agent():
 
         return steps
 
+    def scan_object(self, object: Object) -> str:
+        # TODO: Implement an AI vision name
+        return "object_name"
+
+    def get_object_storage_location(self, key: str) -> Storage:
+        return self.warehouse.map[0][0][0] # TODO: Properly implement this
 
     # function that finds a path to the place to store that object
     def get_path_to_storage(self, object: Object) -> tuple[list[tuple[int, int, int]], Storage]:
-        pass
+        key = self.scan_object(object)
+        storage = self.get_object_storage_location(key)
+        path_to_storage = self.calculate_path(storage.location)
+        return path_to_storage, storage
+
+    def calculate_path(self, target: tuple[int, int, int]) -> list[tuple[int, int, int]]:
+        queue = []
+        visited = set()
+
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)] # right, down, left, up
+
+        initial_x, initial_y, _ = self.position
+        initial_position = (initial_x, initial_y)
+
+        queue.append(initial_position)
+        visited.add(initial_position)
+
+        floor_map = self.map[0]
+        n, m, _ = self.warehouse.dimensions
+        parents = {}
+
+        def reconstruct_path(end: tuple[int, int]):
+            path: list[tuple[int, int, int]] = []
+            start = initial_position
+            current = end
+            while current != start:
+                path.append((current[0], current[1], 0))
+                current = parents[current]
+
+            path.append((start[0], start[1], 0))  # Add the start position
+            path.reverse()  # Reverse the path to go from start to end
+            return path
+        
+        while queue:
+            x, y = queue.pop(0)
+
+            if (x, y, 0) == target:
+                path = reconstruct_path((x, y))
+                return path
+
+            for dx, dy in directions:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < n and 0 <= ny < m and (nx, ny) not in visited:
+                    if floor_map[nx][ny] == SpaceState.FREE_SPACE or (nx, ny, 0) == target:
+                        queue.append((nx, ny))
+                        visited.add((nx, ny))
+                        parents[(nx, ny)] = (x, y)
+
+        raise Exception("Path not found")
 
     def is_move_feasible(self, move: Direction, z = 0):
         x, y, _ = self.position
@@ -488,12 +736,29 @@ class Agent():
 
         map = self.map[z]
 
+        dir_to_angle = {
+            Direction.FORWARD: 0,
+            Direction.RIGHT: 90,
+            Direction.BACKWARD: 180,
+            Direction.LEFT: 270, 
+        }
+
+        angle_to_dir = {
+            0: Direction.FORWARD,
+            90: Direction.RIGHT,
+            180: Direction.BACKWARD,
+            270: Direction.LEFT, 
+        }
+
+        new_angle = (self.rotation + dir_to_angle[move] + 720) % 360
+        move = angle_to_dir[new_angle]
+
         dx = 1 if move == Direction.RIGHT else -1 if move == Direction.LEFT else 0
         dy = 1 if move == Direction.FORWARD else -1 if move == Direction.BACKWARD else 0
 
         new_x, new_y = x + dx, y + dy
 
-        if new_x > 0 and new_x < x_space and new_y > 0 and new_y < y_space:
+        if new_x >= 0 and new_x < x_space and new_y >= 0 and new_y < y_space:
             return map[new_x][new_y] == SpaceState.FREE_SPACE, map[new_x][new_y]
 
         return False, SpaceState.OUT_OF_BOUNDS
