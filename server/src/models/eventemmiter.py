@@ -5,10 +5,6 @@ import json
 class EventEmitter():
     def __init__(self):
         self.event_handlers: dict[str, list[Callable[[str], Any]]] = {}
-        # initialize the TCP connection
-
-        return
-
         # Configura el socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind(('localhost', 65432))
@@ -30,8 +26,6 @@ class EventEmitter():
     def send_event(self, type: str, data: Any):
         # send an event through current TCP connection with the following shape
         # {"type": type, "data": {...}}
-        return
-
         event = {
             "type": type,
             "data": data
