@@ -546,7 +546,8 @@ class Agent():
                 
                 # update the agent position (itself)
                 self.position = (x - 1, y, z)
-            
+
+            self.warehouse.ee.send_event("forward", {})
             return # FORWARD handled
 
         if step.action == AgentAction.PICK_UP:
@@ -592,11 +593,13 @@ class Agent():
                 self.map[0][x - 1][y] = SpaceState.FREE_SPACE
                 self.inventory = obj
 
+            self.warehouse.ee.send_event("pickup", { "type": self.inventory.image_src.split(".")[0] })
             return # PICK_UP handled
         
         if step.action == AgentAction.ROTATE:
             new_rotation = (self.rotation + step.params["degrees"] + 720) % 360
             self.rotation = new_rotation
+            self.warehouse.ee.send_event("rotate", { "degrees": step.params["degrees"] })
             return
         
         if step.action == AgentAction.STORE:
@@ -646,6 +649,7 @@ class Agent():
                 storage.store(self.inventory)
                 self.inventory = None
 
+            self.warehouse.ee.send_event("store", {})
             return # PICK_UP handled
 
         if step.action == AgentAction.WAIT:
