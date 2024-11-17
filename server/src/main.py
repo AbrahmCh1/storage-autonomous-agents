@@ -24,3 +24,5 @@ while not a.is_sorted():
     a.step()
 
 print(a.map[0])
+
+ee.close()

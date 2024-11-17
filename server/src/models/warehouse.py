@@ -42,10 +42,7 @@ class Warehouse():
         
         # emit an event to notify client of
         # warehouse being attached
-        self.ee.send_event("warehouse_attached", {
-            "warehouse_id": "some-id",
-            "dimensions": { "x": x, "y": y, "z": z },
-        })
+        self.ee.send_event("warehouse_attached", ["id", x, y, z])
 
     def is_sorted(self):
         base_map = self.map[0]
@@ -81,10 +78,7 @@ class Warehouse():
 
         # emit an event to notify client of storage being
         # attached
-        self.ee.send_event("storage_attached", {
-            "storage_id": "some-id",
-            "position": { "x": x, "y": y, "z": z },
-        })
+        self.ee.send_event("storage_attached", ["id", x, y, z])
 
     # Method to seed a certain amount of objects
     # makes sure that there is enough capacity to
@@ -113,11 +107,7 @@ class Warehouse():
             
             # emit an event to notify the client of a
             # random object being placed
-            self.ee.send_event("object_attached", {
-                "object_id": "some-id",
-                "type": "typename",
-                "position": { "x": x, "y": y, "z": 0 },
-            })
+            self.ee.send_event("object_attached", ["id", "type", x, y, 0])
 
     def seed_agents(self, agent_count: int):
         x, y, _ = self.dimensions
@@ -137,10 +127,7 @@ class Warehouse():
 
             # emit an event to notify the client of a
             # random object being placed
-            self.ee.send_event("agent_attached", {
-                "agent_id": i,
-                "position": { "x": x, "y": y, "z": 0 },
-            })
+            self.ee.send_event("agent_attached", [i, x, y, 0])
 
     def get_surroundings(self, position: tuple[int, int, int]):
         x, y, _ = position
@@ -173,9 +160,7 @@ class Warehouse():
 
         # emit an event to notify the client of
         # a step being completed
-        self.ee.send_event("step_completed", {
-            "step_number": self.step_n
-        })
+        self.ee.send_event("step_completed", [self.step_n])
 
         self.step_n += 1
 
@@ -547,7 +532,7 @@ class Agent():
                 # update the agent position (itself)
                 self.position = (x - 1, y, z)
 
-            self.warehouse.ee.send_event("forward", {})
+            self.warehouse.ee.send_event("forward", [])
             return # FORWARD handled
 
         if step.action == AgentAction.PICK_UP:
@@ -593,13 +578,13 @@ class Agent():
                 self.map[0][x - 1][y] = SpaceState.FREE_SPACE
                 self.inventory = obj
 
-            self.warehouse.ee.send_event("pickup", { "type": self.inventory.image_src.split(".")[0] })
+            self.warehouse.ee.send_event("pickup", [self.inventory.image_src.split(".")[0]] )
             return # PICK_UP handled
         
         if step.action == AgentAction.ROTATE:
             new_rotation = (self.rotation + step.params["degrees"] + 720) % 360
             self.rotation = new_rotation
-            self.warehouse.ee.send_event("rotate", { "degrees": step.params["degrees"] })
+            self.warehouse.ee.send_event("rotate", [step.params["degrees"]] )
             return
         
         if step.action == AgentAction.STORE:
@@ -649,7 +634,7 @@ class Agent():
                 storage.store(self.inventory)
                 self.inventory = None
 
-            self.warehouse.ee.send_event("store", {})
+            self.warehouse.ee.send_event("store", [])
             return # PICK_UP handled
 
         if step.action == AgentAction.WAIT:
