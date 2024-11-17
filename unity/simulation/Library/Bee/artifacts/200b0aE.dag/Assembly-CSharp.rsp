@@ -383,6 +383,7 @@
 -analyzer:"/Applications/Unity/Hub/Editor/2023.2.16f1/Unity.app/Contents/Tools/Unity.SourceGenerators/Unity.SourceGenerators.dll"
 -analyzer:"/Applications/Unity/Hub/Editor/2023.2.16f1/Unity.app/Contents/Tools/Unity.SourceGenerators/Unity.UIToolkit.SourceGenerator.dll"
 "Assets/GridManager.cs"
+"Assets/ObjectsManager.cs"
 "Assets/Robot/animationStateController.cs"
 "Assets/SocketManager.cs"
 -langversion:9.0

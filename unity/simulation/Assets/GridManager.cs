@@ -2,9 +2,9 @@ using UnityEngine;
 
 public class GridManager : MonoBehaviour
 {
-    public int width = 10; // Number of columns in the grid
-    public int height = 10; // Number of rows in the grid
-    public int depth = 4; // Number of layers in the grid
+    private int width = 10; // Number of columns in the grid
+    private int height = 10; // Number of rows in the grid
+    private int depth = 4; // Number of layers in the grid
     public float cellSize = 1f; // Size of each cell
     public GameObject cellPrefab; // Prefab for the grid cells
     public GameObject shelfPrefab; // Prefab for the shelves
@@ -19,8 +19,26 @@ public class GridManager : MonoBehaviour
 
         // Register the event handler
         connection.HandleEvent("warehouse_attached", (string[] data) => {
+            Debug.Log("[GM]: " + data);
+            int x = int.Parse(data[1]);
+            int z = int.Parse(data[2]);
+            int y = int.Parse(data[3]);
+
+            height = y + 1;
+            width = x;
+            depth = z;
+
             GenerateGrid();
-            GenerateShelves();
+            // GenerateShelves();
+        });
+
+        connection.HandleEvent("storage_attached", (string[] data) => {
+            int x = int.Parse(data[1]);
+            int z = int.Parse(data[2]);
+            int y = int.Parse(data[3]);
+
+            Vector3 position = new(x * cellSize, (y + 1) * cellSize, z * cellSize);
+            CreateShelf(position);
         });
     }
 
@@ -53,28 +71,7 @@ public class GridManager : MonoBehaviour
         }
     }
 
-    void GenerateShelves()
-    {
-        // Generate shelves for the side at x = 1
-        for (int y = 1; y <= 3; y++) // Shelf height
-        {
-            for (int z = 0; z < depth; z++) // Full range of z
-            {
-                Vector3 positionSide1 = new Vector3(0 * cellSize, y * cellSize, z * cellSize); // x = 1
-                CreateShelf(positionSide1);
-            }
-        }
 
-        // Generate shelves for the side at x = width (last column)
-        for (int y = 1; y <= 3; y++) // Shelf height
-        {
-            for (int z = 0; z < depth; z++) // Full range of z
-            {
-                Vector3 positionSide2 = new Vector3((width - 1) * cellSize, y * cellSize, z * cellSize); // x = 10
-                CreateShelf(positionSide2);
-            }
-        }
-    }
 
     void CreateShelf(Vector3 position)
     {

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
 using UnityEngine;
@@ -47,7 +48,8 @@ public class SocketClient : MonoBehaviour
 
     private TcpClient client;
     private NetworkStream stream;
-    private EventHandler[] handlers;
+    private Dictionary<string, List<Handler>> handlers;
+
 
     private void Awake()
     {
@@ -58,6 +60,11 @@ public class SocketClient : MonoBehaviour
             return;
         }
 
+        client = new TcpClient("localhost", 65432);
+        stream = client.GetStream();
+
+        handlers = new Dictionary<string, List<Handler>>();
+
         _instance = this;
         DontDestroyOnLoad(gameObject);
     }
@@ -67,12 +74,17 @@ public class SocketClient : MonoBehaviour
         client.Close();
     }
 
-    void Start()
+    public void HandleEvent(string evt, Handler fx)
     {
-        client = new TcpClient("localhost", 65432);
-        stream = client.GetStream();
+        if (!handlers.ContainsKey(evt))
+        {
+            handlers[evt] = new List<Handler>();
+        }
 
-        handlers = Array.Empty<EventHandler>();
+        handlers[evt].Add(fx);
+
+        Debug.Log("[SM]: Event handler registered for " + evt);
+        Debug.Log("[SM]: Handlers count for " + evt + ": " + handlers[evt].Count);
     }
 
     void Update()
@@ -93,25 +105,16 @@ public class SocketClient : MonoBehaviour
         {
             Event evt = JsonUtility.FromJson<Event>(part);
 
-            foreach (var handler in handlers)
+            Debug.Log("[SM]: " + evt.type + " " + evt.data);
+
+            if (handlers.TryGetValue(evt.type, out var registeredHandlers))
             {
-                if (evt.type == handler.eventType)
+                foreach (var handler in registeredHandlers)
                 {
-                    handler.fx?.Invoke(evt.data.Split(",")); // Ensure the delegate is not null
+                    handler?.Invoke(evt.data.Split(",")); // Ensure the delegate is not null
                 }
             }
         }
     }
 
-    public void HandleEvent(string evt, Handler fx)
-    {
-        EventHandler h = new()
-        {
-            eventType = evt,
-            fx = fx
-        };
-
-        handlers ??= Array.Empty<EventHandler>();
-        handlers = handlers.Append(h).ToArray(); // Create a new array with the new handler
-    }
 }

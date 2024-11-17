@@ -37,4 +37,5 @@ class EventEmitter():
         self.conn.sendall(message.encode('utf-8'))
 
     def close(self):
+        self.sock.close()
         self.conn.close()

@@ -103,11 +103,13 @@ class Warehouse():
                 xrandom = random.choice(range(x))
                 yrandom = random.choice(range(y))
 
-            self.update_maps((xrandom, yrandom, 0), Object((xrandom, yrandom, 0), random.choice(object_srcs)))
+            obj = Object((xrandom, yrandom, 0), random.choice(object_srcs))
+
+            self.update_maps((xrandom, yrandom, 0), obj)
             
             # emit an event to notify the client of a
             # random object being placed
-            self.ee.send_event("object_attached", ["id", "type", x, y, 0])
+            self.ee.send_event("object_attached", ["id", obj.image_src.split(".")[0], xrandom, yrandom, 0])
 
     def seed_agents(self, agent_count: int):
         x, y, _ = self.dimensions
