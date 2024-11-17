@@ -19,7 +19,6 @@ public class GridManager : MonoBehaviour
 
         // Register the event handler
         connection.HandleEvent("warehouse_attached", (string[] data) => {
-            Debug.Log("[GM]: " + data);
             int x = int.Parse(data[1]);
             int z = int.Parse(data[2]);
             int y = int.Parse(data[3]);

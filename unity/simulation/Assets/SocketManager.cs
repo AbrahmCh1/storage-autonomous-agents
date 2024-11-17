@@ -83,8 +83,6 @@ public class SocketClient : MonoBehaviour
 
         handlers[evt].Add(fx);
 
-        Debug.Log("[SM]: Event handler registered for " + evt);
-        Debug.Log("[SM]: Handlers count for " + evt + ": " + handlers[evt].Count);
     }
 
     void Update()

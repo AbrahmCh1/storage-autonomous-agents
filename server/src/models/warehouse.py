@@ -1,6 +1,7 @@
 import random
 import os
 import base64
+import uuid
 from openai import OpenAI
 
 from enum import Enum
@@ -29,7 +30,9 @@ class Warehouse():
         self.capacity = 0
         self.ee = ee
         self.agents: list[Agent] = []
+        self.storages: list[Storage] = [] 
         self.step_n = 0
+        self.id = str(uuid.uuid4())
 
         # generate an empty map. may contain none, storage or object
         # to access a given floor map, use self.map[level]
@@ -42,7 +45,7 @@ class Warehouse():
         
         # emit an event to notify client of
         # warehouse being attached
-        self.ee.send_event("warehouse_attached", ["id", x, y, z])
+        self.ee.send_event("warehouse_attached", [self.id, x, y, z])
 
     def is_sorted(self):
         base_map = self.map[0]
@@ -70,7 +73,9 @@ class Warehouse():
 
         # if we are going to overwrite, subtract capacity
         if self.map[z][x][y] != SpaceState.FREE_SPACE:
-            self.capacity -= self.map[z][x][y].capacity
+            raise Exception("Placing storage in occupied space")
+        
+        self.storages.append(s)
 
         # add storage to the map and update capacity
         self.update_maps((x, y, z), s)
@@ -78,7 +83,7 @@ class Warehouse():
 
         # emit an event to notify client of storage being
         # attached
-        self.ee.send_event("storage_attached", ["id", x, y, z])
+        self.ee.send_event("storage_attached", [s.id, x, y, z])
 
     # Method to seed a certain amount of objects
     # makes sure that there is enough capacity to
@@ -109,7 +114,7 @@ class Warehouse():
             
             # emit an event to notify the client of a
             # random object being placed
-            self.ee.send_event("object_attached", ["id", obj.image_src.split(".")[0], xrandom, yrandom, 0])
+            self.ee.send_event("object_attached", [obj.id, obj.image_src.split(".")[0], xrandom, yrandom, 0])
 
     def seed_agents(self, agent_count: int):
         x, y, _ = self.dimensions
@@ -129,7 +134,7 @@ class Warehouse():
 
             # emit an event to notify the client of a
             # random object being placed
-            self.ee.send_event("agent_attached", [i, x, y, 0])
+            self.ee.send_event("agent_attached", [agent.id, x, y, 0])
 
     def get_surroundings(self, position: tuple[int, int, int]):
         x, y, _ = position
@@ -208,7 +213,8 @@ class Agent():
         self.planned_steps: list[Step] = []
         self.direction = Direction.FORWARD
         self.inventory: Object | None = None
-        self.id = n
+        self.n = n
+        self.id = str(uuid.uuid4())
         self.rotation = 0
 
     # get the current perception at a given position, based on the 
@@ -534,7 +540,7 @@ class Agent():
                 # update the agent position (itself)
                 self.position = (x - 1, y, z)
 
-            self.warehouse.ee.send_event("forward", [])
+            self.warehouse.ee.send_event("forward", [self.id])
             return # FORWARD handled
 
         if step.action == AgentAction.PICK_UP:
@@ -580,13 +586,13 @@ class Agent():
                 self.map[0][x - 1][y] = SpaceState.FREE_SPACE
                 self.inventory = obj
 
-            self.warehouse.ee.send_event("pickup", [self.inventory.image_src.split(".")[0]] )
+            self.warehouse.ee.send_event("pickup", [obj.id, self.inventory.image_src.split(".")[0]] )
             return # PICK_UP handled
         
         if step.action == AgentAction.ROTATE:
             new_rotation = (self.rotation + step.params["degrees"] + 720) % 360
             self.rotation = new_rotation
-            self.warehouse.ee.send_event("rotate", [step.params["degrees"]] )
+            self.warehouse.ee.send_event("rotate", [self.id, step.params["degrees"]] )
             return
         
         if step.action == AgentAction.STORE:
@@ -636,7 +642,7 @@ class Agent():
                 storage.store(self.inventory)
                 self.inventory = None
 
-            self.warehouse.ee.send_event("store", [])
+            self.warehouse.ee.send_event("store", [storage.id])
             return # PICK_UP handled
 
         if step.action == AgentAction.WAIT:
@@ -789,8 +795,11 @@ class Agent():
         return maybe_response
 
     def get_object_storage_location(self, key: str) -> Storage:
-        print("looking for location for key", key)
-        return self.warehouse.map[0][0][0] # TODO: Properly implement this
+        for storage in self.warehouse.storages:
+            if not storage.is_full():
+                return storage
+            
+        raise Exception("No space left")
 
     # function that finds a path to the place to store that object
     def get_path_to_storage(self, object: Object) -> tuple[list[tuple[int, int, int]], Storage]:

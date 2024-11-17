@@ -19,16 +19,12 @@ public class ObjectsManager : MonoBehaviour
     {
         // Access the singleton instance
         SocketClient connection = SocketClient.Instance;
-        Debug.Log("[OM]: Object manager started");
 
         connection.HandleEvent("object_attached", (string[] data) => {
-            Debug.Log("[OM]: Callback called started");
             string type = data[1];
             int x = int.Parse(data[2]);
             int y = int.Parse(data[3]);
             int z = int.Parse(data[4]);
-
-            Debug.Log("[OM]:" + type + " " + x + " " + y + " " + z);  
 
             Vector3 position = new(x * cellSize, (z + 1) * cellSize, y * cellSize);
             GameObject selectedObject = null;

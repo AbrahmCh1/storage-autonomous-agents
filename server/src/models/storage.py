@@ -1,4 +1,5 @@
 from models.object import Object
+import uuid
 
 class PositionFilled(Exception):
     pass
@@ -15,6 +16,7 @@ class Storage():
         self.capacity = capacity
         self.count = 0
         self.position_map: list[Object | None] = [None] * capacity
+        self.id = str(uuid.uuid4())
 
     def check_position(self, n: int):
         if n < len(self.position_map):
