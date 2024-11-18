@@ -201,6 +201,7 @@ class Warehouse():
         plt.xlabel("Steps")
         plt.ylabel("Objects in floor")
         plt.title("Objects in floor over time")
+        plt.gca().yaxis.get_major_locator().set_params(integer=True)
         plt.savefig("global_stats.png")
         plt.close()
 
@@ -216,6 +217,7 @@ class Warehouse():
         plt.xlabel("Steps")
         plt.ylabel("Objects picked")
         plt.title("Objects picked over time")
+        plt.gca().yaxis.get_major_locator().set_params(integer=True)
         plt.legend()
         plt.savefig("agent_stats.png")
         plt.close()
