@@ -586,7 +586,7 @@ class Agent():
                 self.map[0][x - 1][y] = SpaceState.FREE_SPACE
                 self.inventory = obj
 
-            self.warehouse.ee.send_event("pickup", [obj.id, self.inventory.image_src.split(".")[0]] )
+            self.warehouse.ee.send_event("pickup", [self.id, obj.id, self.inventory.image_src.split(".")[0]] )
             return # PICK_UP handled
         
         if step.action == AgentAction.ROTATE:
@@ -642,7 +642,7 @@ class Agent():
                 storage.store(self.inventory)
                 self.inventory = None
 
-            self.warehouse.ee.send_event("store", [storage.id])
+            self.warehouse.ee.send_event("store", [self.id, storage.id])
             return # PICK_UP handled
 
         if step.action == AgentAction.WAIT:
