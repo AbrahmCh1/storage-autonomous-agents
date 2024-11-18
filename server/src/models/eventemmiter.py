@@ -2,6 +2,19 @@ from typing import Callable, Any
 import socket
 import json
 
+class MockEmitter():
+    def __init__(self):
+        pass
+
+    def register_handler(self, type: str, handler: Callable[[str], Any]):
+        pass
+
+    def send_event(self, type: str, data: Any):
+        pass
+
+    def close(self):
+        pass
+
 class EventEmitter():
     def __init__(self):
         self.event_handlers: dict[str, list[Callable[[str], Any]]] = {}

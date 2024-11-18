@@ -771,6 +771,8 @@ class Agent():
         return steps
 
     def scan_object(self, object: Object) -> str:
+        return object.image_src.split(".")[0]
+
         load_dotenv()
 
         def encode_image(image_path):
@@ -812,8 +814,35 @@ class Agent():
 
         return maybe_response
 
-    def get_object_storage_location(self, key: str) -> Storage:
-        for storage in self.warehouse.storages:
+    def get_object_storage_location(self, external_key: str) -> Storage:
+        object_srcs = os.listdir("server/objects")
+        objects = len(object_srcs)
+        spots = len(self.warehouse.storages)
+        extras = spots % objects
+        equals = (spots - extras) // objects
+
+        counts = [0] * objects
+        for i in range(objects):
+            n = equals
+            if extras != 0:
+                extras -= 1
+                n += 1
+            counts[i] = n
+
+        storage_map = {}
+        start = 0
+        for i, count in enumerate(counts):
+            key = object_srcs[i].split(".")[0]
+            storages = [self.warehouse.storages[j] for j in range(start, start + count)]
+            start += count
+            storage_map[key] = storages
+            print("STORAGES: ", key)
+            for s in storages:
+                print("\t", s.location, s)
+
+
+        suitable_storages = storage_map[external_key]
+        for storage in suitable_storages:
             if not storage.is_full():
                 return storage
             

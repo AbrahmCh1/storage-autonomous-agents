@@ -74,7 +74,8 @@ public class GridManager : MonoBehaviour
 
     void CreateShelf(Vector3 position)
     {
-        GameObject shelf = Instantiate(shelfPrefab, position, Quaternion.identity, transform);
+        Quaternion rotation = Quaternion.Euler(-90, 0, 0);
+        GameObject shelf = Instantiate(shelfPrefab, position, rotation, transform);
 
         // Assign the shelf material
         Renderer renderer = shelf.GetComponent<Renderer>();
