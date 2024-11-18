@@ -221,6 +221,29 @@ class Warehouse():
         plt.legend()
         plt.savefig("agent_stats.png")
         plt.close()
+
+        # make an agent_efficiency.png graph. This can be a barchart
+        # with the efficiency value of each agent.
+        efficiencies = [(agent.id[:6], agent.move_count / agent.store_count) for agent in self.agents]
+        agents, values = zip(*efficiencies)
+
+        colors = plt.cm.get_cmap('tab10', len(agents))
+        plt.bar(agents, values, color=[colors(i) for i in range(len(agents))])
+        plt.xlabel("Agent")
+        plt.ylabel("Efficiency")
+        plt.title("Moves per object stored (Lower is better)")
+
+        # Add efficiency values on top of each bar
+        for i, value in enumerate(values):
+            plt.text(i, value, f'{value:.2f}', ha='center', va='bottom')
+
+        # Calculate and plot the average efficiency
+        avg_efficiency = sum(values) / len(values)
+        plt.axhline(y=avg_efficiency, color='r', linestyle='--', label=f'Average: {avg_efficiency:.2f}')
+        plt.legend()
+
+        plt.savefig("agent_efficiency.png")
+        plt.close()
         
 class AgentState(Enum):
     STANDBY = 1
@@ -261,6 +284,7 @@ class Agent():
         self.rotation = 0
         self.time_series: list[tuple[int, int]] = []
         self.store_count = 0
+        self.move_count = 0
 
     # get the current perception at a given position, based on the 
     # current map the agent has
@@ -602,6 +626,7 @@ class Agent():
                 self.position = (x - 1, y, z)
 
             self.warehouse.ee.send_event("forward", [self.id])
+            self.move_count += 1
             return # FORWARD handled
 
         if step.action == AgentAction.PICK_UP:

@@ -18,4 +18,5 @@ The simulation provides some graphs that show the stats of the simulation
 at the end of the simulation.
 
 ![Agent Stats](/agent_stats.png)
+![Agent Efficiency Stats](/agent_efficiency.png)
 ![Global Stats](/global_stats.png)
