@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Text;
@@ -85,25 +84,35 @@ public class SocketClient : MonoBehaviour
 
     }
 
+    private StringBuilder receiveBuffer = new StringBuilder();
+
     void Update()
     {
-        if (stream == null) return;
+        if (stream == null || !stream.DataAvailable) return;
 
         byte[] receivedBuffer = new byte[1024];
-        if (!stream.DataAvailable) return;
-
         int bytes = stream.Read(receivedBuffer, 0, receivedBuffer.Length);
-        string responseData = Encoding.ASCII.GetString(receivedBuffer, 0, bytes);
+        string chunk = Encoding.ASCII.GetString(receivedBuffer, 0, bytes);
 
-        if (string.IsNullOrEmpty(responseData))
-            return;
+        // Append the received chunk to the buffer
+        receiveBuffer.Append(chunk);
 
-        string[] parts = responseData.Split("\n");
-        foreach (string part in parts)
+        // Process all complete messages in the buffer
+        while (true)
         {
-            Event evt = JsonUtility.FromJson<Event>(part);
+            string bufferContent = receiveBuffer.ToString();
+            int newlineIndex = bufferContent.IndexOf('\n');
 
-            Debug.Log("[SM]: " + evt.type + " " + evt.data);
+            // If no complete message exists, wait for more data
+            if (newlineIndex == -1) break;
+
+            // Extract the message and remove it from the buffer
+            string message = bufferContent.Substring(0, newlineIndex).Trim();
+            receiveBuffer.Remove(0, newlineIndex + 1);
+
+            // Process the message
+            Debug.Log("[SM]: " + message);
+            Event evt = JsonUtility.FromJson<Event>(message);
 
             if (handlers.TryGetValue(evt.type, out var registeredHandlers))
             {
@@ -114,5 +123,6 @@ public class SocketClient : MonoBehaviour
             }
         }
     }
+
 
 }

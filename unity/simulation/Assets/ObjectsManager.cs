@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class ObjectsManager : MonoBehaviour
@@ -14,6 +15,12 @@ public class ObjectsManager : MonoBehaviour
     public float cellSize = 1f; // Cell size (same as in GridManager)
     public int gridHeight = 10; // Height of the grid
 
+    private Dictionary<string, GameObject> objects = new Dictionary<string, GameObject>();
+
+    public GameObject GetObjectById(string id) {
+        return objects[id];
+    }
+
 
     void Start()
     {
@@ -21,6 +28,7 @@ public class ObjectsManager : MonoBehaviour
         SocketClient connection = SocketClient.Instance;
 
         connection.HandleEvent("object_attached", (string[] data) => {
+            string id = data[0];
             string type = data[1];
             int x = int.Parse(data[2]);
             int y = int.Parse(data[3]);
@@ -59,7 +67,8 @@ public class ObjectsManager : MonoBehaviour
             }
 
             if (selectedObject != null) {
-                Instantiate(selectedObject, position + translation, rotation);
+                GameObject obj = Instantiate(selectedObject, position + translation, rotation);
+                objects[id] = obj;
             }
         });
     }

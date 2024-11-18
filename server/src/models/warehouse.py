@@ -134,7 +134,7 @@ class Warehouse():
 
             # emit an event to notify the client of a
             # random object being placed
-            self.ee.send_event("agent_attached", [agent.id, x, y, 0])
+            self.ee.send_event("agent_attached", [agent.id, xrandom, yrandom, 0])
 
     def get_surroundings(self, position: tuple[int, int, int]):
         x, y, _ = position
@@ -382,6 +382,9 @@ class Agent():
             if feasible: return
             if isinstance(reason, Agent):
                 # if an agent gets in the way wait random amount
+                n = random.choice(range(5))
+                wait_steps = [Step(AgentAction.WAIT, None) for _ in range(n)]
+
                 self.planned_steps = []
                 if self.state == AgentState.CARRYING_OBJECT:
                     print("Something went wrong, recalculating path to storage")
@@ -404,7 +407,7 @@ class Agent():
                     # set the plan to be the combination of these steps
                     # 1. Move to selected storage
                     # 2. Store object and set new state to standby
-                    self.planned_steps = movement_steps + store_steps
+                    self.planned_steps = wait_steps + movement_steps + store_steps
                     
                     print("Planned steps")
                     for step in self.planned_steps:
@@ -432,7 +435,7 @@ class Agent():
                     # set plan to be the combination of these steps
                     # 2. move to object
                     # 3. pickup object and set state to MOVING_OBJECT
-                    self.planned_steps = movement_steps + pickup_steps
+                    self.planned_steps = wait_steps + movement_steps + pickup_steps
 
                     print("Planned steps")
                     for step in self.planned_steps:
@@ -471,8 +474,21 @@ class Agent():
             target_storage: Storage = next_step.params["storage"]
             _, reason = self.is_move_feasible(Direction.FORWARD, target_storage.location[2])
             if target_storage == reason and not target_storage.is_full(): return
-            # TODO: handle cases when storing is no longer possible
-            raise Exception("Storage ran out!")
+            
+            path, storage = self.get_path_to_storage(self.inventory)
+
+            movement_steps = self.path_to_movement(path)
+            store_steps = [
+                Step(AgentAction.STORE, { "storage": storage }),
+                Step(AgentAction.CHANGE_STATE, { "new_state": AgentState.STANDBY })
+            ]
+
+            # set the plan to be the combination of these steps
+            # 1. Move to selected storage
+            # 2. Store object and set new state to standby
+            self.planned_steps = movement_steps + store_steps
+            return
+
 
     def step(self):
         # this will execute the action at the top
@@ -609,40 +625,42 @@ class Agent():
 
             if self.inventory is None:
                 raise Exception("Inventory was empty and you tried to store an object")
+            
+            obj = self.inventory
 
             if dir == Direction.FORWARD:
-                storage = self.warehouse.map[0][x][y + 1]
+                storage: Storage = step.params["storage"]
                 if storage.is_full():
                     raise Exception("Storage is full")
                 
-                storage.store(self.inventory)
+                storage.store(obj)
                 self.inventory = None
             
             if dir == Direction.RIGHT:
-                storage = self.warehouse.map[0][x + 1][y]
+                storage: Storage = step.params["storage"]
                 if storage.is_full():
                     raise Exception("Storage is full")
                 
-                storage.store(self.inventory)
+                storage.store(obj)
                 self.inventory = None
 
             if dir == Direction.BACKWARD:
-                storage = self.warehouse.map[0][x][y - 1]
+                storage: Storage = step.params["storage"]
                 if storage.is_full():
                     raise Exception("Storage is full")
                 
-                storage.store(self.inventory)
+                storage.store(obj)
                 self.inventory = None
 
             if dir == Direction.LEFT:
-                storage = self.warehouse.map[0][x - 1][y]
+                storage: Storage = step.params["storage"]
                 if storage.is_full():
                     raise Exception("Storage is full")
                 
-                storage.store(self.inventory)
+                storage.store(obj)
                 self.inventory = None
 
-            self.warehouse.ee.send_event("store", [self.id, storage.id])
+            self.warehouse.ee.send_event("store", [self.id, obj.id, storage.id])
             return # PICK_UP handled
 
         if step.action == AgentAction.WAIT:
@@ -805,7 +823,7 @@ class Agent():
     def get_path_to_storage(self, object: Object) -> tuple[list[tuple[int, int, int]], Storage]:
         key = self.scan_object(object)
         storage = self.get_object_storage_location(key)
-        path_to_storage = self.calculate_path(storage.location)
+        path_to_storage = self.calculate_path((storage.location[0], storage.location[1], 0))
         return path_to_storage, storage
 
     def calculate_path(self, target: tuple[int, int, int]) -> list[tuple[int, int, int]]:
