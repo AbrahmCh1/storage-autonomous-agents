@@ -771,7 +771,13 @@ class Agent():
         return steps
 
     def scan_object(self, object: Object) -> str:
-        return object.image_src.split(".")[0]
+        res = object.image_src.split(".")[0]
+        self.warehouse.ee.send_event("vision", [self.id, res])
+
+        return res
+
+        object_srcs = os.listdir("server/objects")
+        object_names = [s.split(".")[0] for s in object_srcs]
 
         load_dotenv()
 
@@ -788,7 +794,7 @@ class Agent():
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a simple vision model. Your task is to see the image provided by the user and reply with it's name in only one word. Example answers could be: apple, baseball, train"
+                    "content": f"You are a simple vision model. Your task is to see the image provided by the user and reply with the closest label on this list: {", ".join(object_names)}"
                 },
                 {
                     "role": "user",
@@ -812,7 +818,11 @@ class Agent():
         if maybe_response is None:
             raise Exception("Model response was empty")
 
-        return maybe_response
+
+
+        self.warehouse.ee.send_event("vision", [self.id, maybe_response])
+
+        return maybe_response 
 
     def get_object_storage_location(self, external_key: str) -> Storage:
         object_srcs = os.listdir("server/objects")

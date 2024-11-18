@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
 
@@ -8,6 +9,7 @@ public class AgentsManager : MonoBehaviour
 {
     // Start is called before the first frame update
     public GameObject agentPrefab;
+    public GameObject lightPrefab;
     private Dictionary<string, GameObject> agents = new Dictionary<string, GameObject>();
 
     class Movement {
@@ -18,6 +20,7 @@ public class AgentsManager : MonoBehaviour
 
     private Movement[] movements = new Movement[0];
     public ObjectsManager objectsManager;
+    public TextMeshPro text;
 
 
     void Start()
@@ -32,6 +35,16 @@ public class AgentsManager : MonoBehaviour
 
             GameObject agent = Instantiate(agentPrefab, new Vector3(x, 0.5f, z), Quaternion.identity);
             agents[id] = agent;
+
+            GameObject light = Instantiate(lightPrefab, new Vector3(x, 1.0f, z), Quaternion.identity);
+            light.transform.parent = agent.transform;
+        });
+
+        connection.HandleEvent("vision", (string[] data) => {
+            string id = data[0];
+            string vision = data[1];
+
+            text.text = "Agent " + id[..6] + " sees: " + vision;
         });
 
 

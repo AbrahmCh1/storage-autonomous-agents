@@ -31,7 +31,7 @@ for storage in storages:
     a.attach_storage(storage)
 
 a.seed_objects(18)
-a.seed_agents(4)
+a.seed_agents(5)
 
 print(a.map[0])
 
