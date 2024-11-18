@@ -7,9 +7,9 @@ import random
 
 random.seed(10)
 
-DELTA_TIME = 1
+DELTA_TIME = 0
 
-ee = EventEmitter()
+ee = MockEmitter()
 a = Warehouse((12, 8, 3), ee)
 
 storages = [
@@ -40,5 +40,7 @@ while not a.is_sorted():
     a.step()
 
 print(a.map[0])
+
+a.create_stats_graph()
 
 ee.close()

@@ -33,6 +33,9 @@ class Warehouse():
         self.storages: list[Storage] = [] 
         self.step_n = 0
         self.id = str(uuid.uuid4())
+        
+        # a list of points, (step, objects in the floor)
+        self.time_series: list[tuple[int, int]] = []
 
         # generate an empty map. may contain none, storage or object
         # to access a given floor map, use self.map[level]
@@ -46,6 +49,16 @@ class Warehouse():
         # emit an event to notify client of
         # warehouse being attached
         self.ee.send_event("warehouse_attached", [self.id, x, y, z])
+
+    def count_objects_floor(self):
+        base_map = self.map[0]
+        count = 0
+        for row in base_map:
+            for element in row:
+                if isinstance(element, Object):
+                    count += 1
+
+        return count
 
     def is_sorted(self):
         base_map = self.map[0]
@@ -171,14 +184,42 @@ class Warehouse():
 
         self.step_n += 1
 
+        self.time_series.append((self.step_n, self.count_objects_floor()))
+
     def update_maps(self, position: tuple[int, int, int], v: Any):
         x, y, z = position
         self.static_map[z][x][y] = v
         self.map[z][x][y] = v
+
+    def create_stats_graph(self):
+        import matplotlib.pyplot as plt
+
+        x = [t[0] for t in self.time_series]
+        y = [t[1] for t in self.time_series]
+
+        plt.plot(x, y)
+        plt.xlabel("Steps")
+        plt.ylabel("Objects in floor")
+        plt.title("Objects in floor over time")
+        plt.savefig("global_stats.png")
+        plt.close()
+
+        # create a different graph using the .time_series property
+        # of each agent but showing all agents in the same graph.
+        # this time_series has the format (step, picked_objects)
+        plt.figure(figsize=(10, 5))
+        for agent in self.agents:
+            x = [t[0] for t in agent.time_series]
+            y = [t[1] for t in agent.time_series]
+            plt.plot(x, y, label=f"Agent {agent.id[:6]}")
         
-
-
-
+        plt.xlabel("Steps")
+        plt.ylabel("Objects picked")
+        plt.title("Objects picked over time")
+        plt.legend()
+        plt.savefig("agent_stats.png")
+        plt.close()
+        
 class AgentState(Enum):
     STANDBY = 1
     MOVING_TO_OBJECT = 2
@@ -216,6 +257,8 @@ class Agent():
         self.n = n
         self.id = str(uuid.uuid4())
         self.rotation = 0
+        self.time_series: list[tuple[int, int]] = []
+        self.store_count = 0
 
     # get the current perception at a given position, based on the 
     # current map the agent has
@@ -661,6 +704,10 @@ class Agent():
                 self.inventory = None
 
             self.warehouse.ee.send_event("store", [self.id, obj.id, storage.id])
+
+            self.store_count += 1
+            self.time_series.append((self.warehouse.step_n, self.store_count))
+
             return # PICK_UP handled
 
         if step.action == AgentAction.WAIT:
