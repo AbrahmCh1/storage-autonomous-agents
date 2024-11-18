@@ -10,7 +10,7 @@ then open the Unity project in Unity 3D, and press play.
 
 ## Preview
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/3YjkyaQj9vQ?si=WLEOHzuOMPBVtT-S" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+[![Demonstration Video](https://img.youtube.com/vi/3YjkyaQj9vQ/0.jpg)](https://www.youtube.com/watch?v=3YjkyaQj9vQ)
 
 ## Simulation stats
 
