@@ -845,11 +845,6 @@ class Agent():
         return steps
 
     def scan_object(self, object: Object) -> str:
-        res = object.image_src.split(".")[0]
-        self.warehouse.ee.send_event("vision", [self.id, res])
-
-        return res
-
         object_srcs = os.listdir("server/objects")
         object_names = [s.split(".")[0] for s in object_srcs]
 
@@ -1015,5 +1010,4 @@ class Agent():
         if new_x >= 0 and new_x < x_space and new_y >= 0 and new_y < y_space:
             return map[new_x][new_y] == SpaceState.FREE_SPACE, map[new_x][new_y]
 
-        return False, SpaceState.OUT_OF_BOUNDS
-    
+        return False, SpaceState.OUT_OF_BOUNDS    
