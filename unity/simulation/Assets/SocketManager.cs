@@ -124,5 +124,18 @@ public class SocketClient : MonoBehaviour
         }
     }
 
+    public void SendEvent(string type, string[] data)
+    {
+        if (stream == null) return;
+
+        string jsonData = JsonUtility.ToJson(new Event
+        {
+            type = type,
+            data = string.Join(",", data)
+        });
+
+        byte[] messageBytes = Encoding.ASCII.GetBytes(jsonData + "\n");
+        stream.Write(messageBytes, 0, messageBytes.Length);
+    }
 
 }
